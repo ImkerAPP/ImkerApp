@@ -1074,12 +1074,20 @@
       </button>
       <div id="inwinter-inhoud" class="grafiek-kaart" style="display:none;">
         <div class="veld">
-          <label for="inwinter-voerramen">Aantal ramen gevuld met voer</label>
+          <label for="inwinter-voerramen">Aantal ramen gevuld met voer (broedbak)</label>
           <input type="number" id="inwinter-voerramen" min="0" step="0.5" placeholder="Bijv. 2,5" oninput="berekenInwinterLive()">
         </div>
         <div class="veld">
-          <label for="inwinter-kg-per-raam">Kg voer per vol raam (indicatief, afhankelijk van je kasttype)</label>
+          <label for="inwinter-kg-per-raam">Kg voer per vol raam in de broedbak (indicatief, afhankelijk van je kasttype)</label>
           <input type="number" id="inwinter-kg-per-raam" min="0" step="0.1" placeholder="Bijv. 2,5" oninput="berekenInwinterLive()">
+        </div>
+        <div class="veld">
+          <label for="inwinter-hk-ramen">Ramen gevuld met voer in de honingkamer (bijv. winterkamer boven één broedbak)</label>
+          <input type="number" id="inwinter-hk-ramen" min="0" step="0.5" placeholder="Bijv. 6" oninput="berekenInwinterLive()">
+        </div>
+        <div class="veld">
+          <label for="inwinter-hk-kg-per-raam">Kg voer per vol raam in de honingkamer (een ondiep raam heeft minder dan een broedraam)</label>
+          <input type="number" id="inwinter-hk-kg-per-raam" min="0" step="0.1" placeholder="Bijv. 1,5" oninput="berekenInwinterLive()">
         </div>
         <p id="inwinter-berekend" class="kaart-hint" style="margin-top:-6px;"></p>
         <div class="veld">
@@ -1357,6 +1365,12 @@
       <h2>Wat is er nieuw?</h2>
     </div>
     <div style="padding:20px;">
+      <div class="agenda-taak-item">
+        <div class="agenda-taak-info">
+          <div class="agenda-taak-datum">🍯 Wintervoer in de honingkamer</div>
+          <div class="agenda-taak-notitie" style="font-style:normal;">Bij Inwinteren kun je nu ook het voer invullen dat in de honingkamer zit (bijvoorbeeld bij één broedbak met een winterkamer erop), met een eigen kg per raam. De app telt het op bij het voer in de broedbak en het bijgevoerde voer. Een tip van een tester!</div>
+        </div>
+      </div>
       <div class="agenda-taak-item">
         <div class="agenda-taak-info">
           <div class="agenda-taak-datum">🧪 Behandeladvies bij varroa</div>
@@ -1706,7 +1720,7 @@
   // ===== Wat is er nieuw =====
   // Dit nummer hoog ik met de hand op zodra er een nieuwe regel aan het updatescherm wordt
   // toegevoegd — zo weet de app of iemand de nieuwste update al heeft gezien.
-  const HUIDIGE_UPDATE_VERSIE = 2;
+  const HUIDIGE_UPDATE_VERSIE = 3;
   const GEZIENE_UPDATE_SLEUTEL = 'bijenapp_geziene_update_versie';
 
   function checkOngezieneUpdate(){
@@ -3248,14 +3262,27 @@
   function berekenInwinterLive(){
     const voerramenVal = document.getElementById('inwinter-voerramen').value;
     const kgPerRaamVal = document.getElementById('inwinter-kg-per-raam').value;
+    const hkRamenVal = document.getElementById('inwinter-hk-ramen').value;
+    const hkKgVal = document.getElementById('inwinter-hk-kg-per-raam').value;
     const berekendEl = document.getElementById('inwinter-berekend');
 
-    if(voerramenVal === '' || kgPerRaamVal === ''){
+    const delen = [];
+    let totaal = 0;
+    if(voerramenVal !== '' && kgPerRaamVal !== ''){
+      const kg = Number(voerramenVal) * Number(kgPerRaamVal);
+      totaal += kg;
+      delen.push(`broedbak ${kg.toFixed(1)} kg`);
+    }
+    if(hkRamenVal !== '' && hkKgVal !== ''){
+      const kg = Number(hkRamenVal) * Number(hkKgVal);
+      totaal += kg;
+      delen.push(`honingkamer ${kg.toFixed(1)} kg`);
+    }
+    if(delen.length === 0){
       berekendEl.textContent = '';
       return;
     }
-    const voerKg = Number(voerramenVal) * Number(kgPerRaamVal);
-    berekendEl.textContent = `≈ ${voerKg.toFixed(1)} kg voer aanwezig (${voerramenVal} raam/ramen × ${kgPerRaamVal} kg/raam)`;
+    berekendEl.textContent = `≈ ${totaal.toFixed(1)} kg voer aanwezig (${delen.join(' + ')})`;
   }
 
   function inwinterenOpslaan(){
@@ -3269,6 +3296,10 @@
     // Alleen deze velden bijwerken — het al bijgevoerde totaal (bijgevoerdKg) blijft ongemoeid
     volk.inwinteren.voerramen = voerramenVal !== '' ? Number(voerramenVal) : null;
     volk.inwinteren.kgPerRaam = kgPerRaamVal !== '' ? Number(kgPerRaamVal) : null;
+    const hkRamenVal = document.getElementById('inwinter-hk-ramen').value;
+    const hkKgVal = document.getElementById('inwinter-hk-kg-per-raam').value;
+    volk.inwinteren.honingkamerVoerramen = hkRamenVal !== '' ? Number(hkRamenVal) : null;
+    volk.inwinteren.honingkamerKgPerRaam = hkKgVal !== '' ? Number(hkKgVal) : null;
     volk.inwinteren.broedramen = broedramenVal !== '' ? Number(broedramenVal) : null;
     volk.inwinteren.doelVoerKg = doelKgVal !== '' ? Number(doelKgVal) : null;
     bewaarVolken(volken);
@@ -3282,17 +3313,21 @@
     const kgPerRaam = inwinteren.kgPerRaam;
     const doelKg = inwinteren.doelVoerKg;
 
-    if(voerramen == null || kgPerRaam == null || doelKg == null){
+    const heeftBroedbakVoer = voerramen != null && kgPerRaam != null;
+    const heeftHkVoer = inwinteren.honingkamerVoerramen != null && inwinteren.honingkamerKgPerRaam != null;
+
+    if((!heeftBroedbakVoer && !heeftHkVoer) || doelKg == null){
       resultaatEl.textContent = '';
       resultaatEl.style.color = '';
       return;
     }
 
-    const voerKgVanRamen = voerramen * kgPerRaam;
+    const voerKgVanRamen = (heeftBroedbakVoer ? voerramen * kgPerRaam : 0)
+      + (heeftHkVoer ? inwinteren.honingkamerVoerramen * inwinteren.honingkamerKgPerRaam : 0);
     const bijgevoerdKg = inwinteren.bijgevoerdKg || 0;
     const totaalKg = voerKgVanRamen + bijgevoerdKg;
     const aanwezigTekst = bijgevoerdKg > 0
-      ? `${voerKgVanRamen.toFixed(1)} kg van ramen + ${bijgevoerdKg.toFixed(1)} kg bijgevoerd = ${totaalKg.toFixed(1)} kg`
+      ? `${voerKgVanRamen.toFixed(1)} kg in de ramen + ${bijgevoerdKg.toFixed(1)} kg bijgevoerd = ${totaalKg.toFixed(1)} kg`
       : `${totaalKg.toFixed(1)} kg`;
 
     const tekortKg = doelKg - totaalKg;
@@ -3408,6 +3443,8 @@
     const inwinteren = volk.inwinteren || {};
     document.getElementById('inwinter-voerramen').value = inwinteren.voerramen != null ? inwinteren.voerramen : '';
     document.getElementById('inwinter-kg-per-raam').value = inwinteren.kgPerRaam != null ? inwinteren.kgPerRaam : '';
+    document.getElementById('inwinter-hk-ramen').value = inwinteren.honingkamerVoerramen != null ? inwinteren.honingkamerVoerramen : '';
+    document.getElementById('inwinter-hk-kg-per-raam').value = inwinteren.honingkamerKgPerRaam != null ? inwinteren.honingkamerKgPerRaam : '';
     document.getElementById('inwinter-broedramen').value = inwinteren.broedramen != null ? inwinteren.broedramen : '';
     document.getElementById('inwinter-doel-kg').value = inwinteren.doelVoerKg != null ? inwinteren.doelVoerKg : '';
     berekenInwinterLive();
